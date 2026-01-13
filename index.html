@@ -19,8 +19,7 @@
             --sp-green: #00D700;
             --sp-cyan: #00D7D7;
             --sp-yellow: #D7D700;
-            /* THE FIX: We make the JS match this variable below */
-            --sp-grey: #e0e0e0; 
+            --sp-white: #e0e0e0; /* Matches the video's grey-white */
             
             --case-black: #1a1a1a;
             --key-grey: #2d2d2d;
@@ -66,7 +65,7 @@
         #stage {
             position: relative;
             width: 320px; height: 240px; /* 4:3 Aspect Ratio */
-            background: var(--sp-grey);
+            background: var(--sp-white);
             box-shadow: 0 0 30px rgba(0,0,0,0.9);
             image-rendering: pixelated;
             border: 1px solid #333;
@@ -98,7 +97,6 @@
             top: auto !important;
             bottom: 0px;
             left: 0px;
-            /* Transparent so we see the canvas color underneath */
             background-color: transparent;
             width: 100%;
             padding: 4px 10px;
@@ -118,7 +116,6 @@
             box-shadow: inset 0 2px 5px rgba(255,255,255,0.1);
         }
 
-        /* The Rainbow Logo Bar */
         .sinclair-branding {
             display: flex;
             justify-content: flex-end;
@@ -155,13 +152,12 @@
             gap: 20px;
         }
 
-        /* --- RUBBER KEYS CSS --- */
         .rubber-key {
             background: var(--key-grey);
             border: none;
             color: #eee;
             padding: 15px 20px;
-            font-family: Arial, sans-serif; /* Authentic key font */
+            font-family: Arial, sans-serif;
             font-weight: bold;
             font-size: 14px;
             border-radius: 4px;
@@ -172,18 +168,15 @@
             gap: 4px;
             cursor: pointer;
             position: relative;
-            
-            /* The "Rubber" Look */
             box-shadow: 
-                inset 1px 1px 3px rgba(255,255,255,0.15), /* Top highlight */
-                inset -1px -1px 3px rgba(0,0,0,0.5),      /* Bottom shadow */
-                0 6px 0 #111,                              /* 3D Depth */
-                0 8px 5px rgba(0,0,0,0.4);                 /* Drop shadow */
+                inset 1px 1px 3px rgba(255,255,255,0.15),
+                inset -1px -1px 3px rgba(0,0,0,0.5),
+                0 6px 0 #111,
+                0 8px 5px rgba(0,0,0,0.4);
             transition: all 0.1s ease;
             width: 100px;
         }
 
-        /* Keyword coloring (like "LOAD" in red) */
         .rubber-key span.cmd {
             color: var(--sp-red);
             font-size: 11px;
@@ -195,9 +188,8 @@
             font-size: 16px;
         }
 
-        /* Press Animation */
         .rubber-key:active {
-            transform: translateY(6px); /* Move down */
+            transform: translateY(6px);
             box-shadow: 
                 inset 1px 1px 5px rgba(0,0,0,0.5), 
                 0 0 0 #111, 
@@ -205,6 +197,7 @@
         }
 
         /* --- BORDER ANIMATIONS --- */
+        /* Updated to match video: Pilot is Cyan/Red, Data is Blue/Yellow */
         .pilot-border { animation: pilot 0.04s infinite step-end; }
         .data-border { animation: data 0.04s infinite step-end; }
 
@@ -212,11 +205,11 @@
             0% { background-color: var(--sp-red); }
             50% { background-color: var(--sp-cyan); }
         }
+        
         @keyframes data {
+            /* Classic Blue and Yellow stripes */
             0% { background-color: var(--sp-blue); }
-            25% { background-color: var(--sp-yellow); }
-            50% { background-color: var(--sp-blue); } 
-            75% { background-color: var(--sp-yellow); }
+            50% { background-color: var(--sp-yellow); }
         }
 
         /* --- HIDDEN ENGINE ROOM --- */
@@ -265,7 +258,7 @@
             return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
         }
 
-        // --- 1. AUDIO ENGINE (Generative) ---
+        // --- 1. AUDIO ENGINE ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let osc = null, gain = null;
 
@@ -284,8 +277,9 @@
             } else if (type === 'data') {
                 osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
                 const now = audioCtx.currentTime;
-                for(let i=0; i<100; i++) {
-                    osc.frequency.setValueAtTime(Math.random() > 0.5 ? 1200 : 2000, now + (i*0.02));
+                // Generate the "screech"
+                for(let i=0; i<300; i++) {
+                    osc.frequency.setValueAtTime(Math.random() > 0.5 ? 1200 : 2000, now + (i*0.01));
                 }
             }
             osc.start();
@@ -311,7 +305,7 @@
 
         let attrData = new Array(768).fill(56); 
         
-        // FIX 1: Set the last color (White) to exactly #e0e0e0 to match CSS
+        // Exact Spectrum Palette with the correct Grey at index 7
         const PALETTE = ['#000000', '#0000D7', '#D70000', '#D700D7', '#00D700', '#00D7D7', '#D7D700', '#e0e0e0'];
 
         function autoConvertImage() {
@@ -319,7 +313,7 @@
             tempCanvas.width = 256; tempCanvas.height = 192;
             const tCtx = tempCanvas.getContext('2d');
             
-            // FIX 2: Use palette white (#e0e0e0) instead of "white" (#FFFFFF)
+            // Use correct grey background
             tCtx.fillStyle = PALETTE[7];
             tCtx.fillRect(0, 0, 256, 192);
             
@@ -331,6 +325,7 @@
             const imgDataObj = tCtx.getImageData(0, 0, 256, 192);
             const pixels = imgDataObj.data;
 
+            // Clear canvases
             ctx.clearRect(0, 0, 256, 192);
             attrCtx.clearRect(0, 0, 256, 192); 
             attrData.fill(56);
@@ -343,13 +338,11 @@
             
             redrawAttributes();
 
-            // FIX 3: Ensure composite background is also #e0e0e0
+            // Create Composite (Colored) version for later use
             compCtx.fillStyle = PALETTE[7]; 
             compCtx.fillRect(0,0,256,192); 
-            
             compCtx.globalAlpha = 1.0;
             compCtx.drawImage(attrCanvas, 0, 0);
-            
             compCtx.globalAlpha = 1.0;
             compCtx.drawImage(speccyCanvas, 0, 0);
         }
@@ -377,10 +370,7 @@
 
         function getNearestSpeccyColor(r, g, b) {
             let minDist = Infinity, bestIndex = 0;
-            
-            // Note: We compare against standard RGB values, but map to our PALETTE
-            const specRGB = [[0,0,0],[0,0,215],[215,0,0],[215,0,215],[0,215,0],[0,215,215],[215,215,0],[224,224,224]]; // slightly tweaked white for calc
-            
+            const specRGB = [[0,0,0],[0,0,215],[215,0,0],[215,0,215],[0,215,0],[0,215,215],[215,215,0],[224,224,224]];
             specRGB.forEach((rgb, i) => {
                 const d = Math.sqrt((r-rgb[0])**2 + (g-rgb[1])**2 + (b-rgb[2])**2);
                 if (d < minDist) { minDist = d; bestIndex = i; }
@@ -392,15 +382,9 @@
             attrCtx.clearRect(0, 0, 256, 192); 
             for (let i = 0; i < 768; i++) { 
                 const paper = (attrData[i] >> 3) & 7; 
-                // Only draw if NOT default white, or if white, use our special grey
-                if (paper !== 7) { 
-                    attrCtx.fillStyle = PALETTE[paper]; 
-                    attrCtx.fillRect((i % 32) * 8, Math.floor(i / 32) * 8, 8, 8); 
-                } else {
-                    // Force the paper color to our specific grey
-                    attrCtx.fillStyle = PALETTE[7];
-                    attrCtx.fillRect((i % 32) * 8, Math.floor(i / 32) * 8, 8, 8);
-                }
+                // Always fill, using PALETTE[7] for white to match grey background
+                attrCtx.fillStyle = PALETTE[paper === 7 ? 7 : paper];
+                attrCtx.fillRect((i % 32) * 8, Math.floor(i / 32) * 8, 8, 8); 
             }
         }
 
@@ -422,50 +406,72 @@
         }
 
         function startLoadingSequence() {
-            const greyColor = getCssColor('--sp-grey');
+            const greyColor = getCssColor('--sp-white');
             
             // Reset Screen
             visibleCtx.fillStyle = greyColor; 
             visibleCtx.fillRect(0,0,256,192);
             
-            // Reset Text Position
             osText.classList.remove('bottom-prompt');
             osText.style.display = 'block'; 
             osText.innerText = "";
             
-            // Phase 1: Pilot
+            // Phase 1: Pilot Tone
             playTone('pilot');
             viewPort.className = 'pilot-border';
             
-            setTimeout(() => { osText.innerText = "Program: loader"; }, 800);
+            setTimeout(() => { osText.innerText = "Program: loader"; }, 500);
 
             setTimeout(() => {
-                // Phase 2: Data
-                viewPort.className = 'data-border';
-                osText.innerText += "\nBytes: image";
-                playTone('data');
-                setTimeout(() => { osText.style.display = 'none'; }, 200);
-
-                // Start Line Renderer
-                startLineRenderer();
-            }, 2500);
+                // Phase 2: Data Header
+                viewPort.className = 'pilot-border'; // Keep pilot briefly
+                osText.innerText += "\nBytes: art";
+                
+                // Slight pause before data...
+                setTimeout(() => {
+                    viewPort.className = 'data-border'; // Switch to Blue/Yellow stripes
+                    osText.style.display = 'none'; // Hide text as image loads over it
+                    playTone('data');
+                    startBitmapLoad();
+                }, 1000);
+            }, 1500);
         }
 
-        function startLineRenderer() {
+        // Stage 1: Load Pixels (Black on Grey)
+        function startBitmapLoad() {
             let y = 0;
-            const step = 2; // Pixels per tick
+            const step = 2; 
+            const timer = setInterval(() => {
+                if (y >= 192) {
+                    clearInterval(timer);
+                    startAttributeLoad(); // Trigger color splash
+                    return;
+                }
+                // Draw ONLY the black pixels (speccyCanvas) onto the grey background
+                visibleCtx.drawImage(speccyCanvas, 0, y, 256, step, 0, y, 256, step);
+                
+                y += step;
+                // Modulation effect
+                if(osc && Math.random() > 0.8) {
+                    osc.frequency.setValueAtTime(Math.random()*1000 + 500, audioCtx.currentTime);
+                }
+            }, 15);
+        }
+
+        // Stage 2: Load Colors (Composite)
+        function startAttributeLoad() {
+            let y = 0;
+            const step = 8; // Colors load much faster
             const timer = setInterval(() => {
                 if (y >= 192) {
                     clearInterval(timer);
                     finishLoading();
                     return;
                 }
+                // Draw the FULL colored image over the black pixels
                 visibleCtx.drawImage(compositeCanvas, 0, y, 256, step, 0, y, 256, step);
                 y += step;
-                if(osc && Math.random() > 0.8) {
-                    osc.frequency.setValueAtTime(Math.random()*1000 + 500, audioCtx.currentTime);
-                }
-            }, 15);
+            }, 5); // Very fast interval
         }
 
         function finishLoading() {
@@ -473,9 +479,9 @@
             viewPort.className = '';
             viewPort.style.background = '#000';
             
-            const greyColor = getCssColor('--sp-grey');
+            const greyColor = getCssColor('--sp-white');
             
-            // Paint bottom area manually with the exact CSS grey
+            // Paint bottom area
             visibleCtx.fillStyle = greyColor;
             visibleCtx.fillRect(0, 192 - 24, 256, 24);
 
