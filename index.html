@@ -98,8 +98,8 @@
             top: auto !important;
             bottom: 0px;
             left: 0px;
-            /* THE FIX: Solid grey background for the status line */
-            background-color: var(--sp-grey);
+            /* THE FIX: Transparent background here, letting the canvas color show through */
+            background-color: transparent;
             width: 100%;
             padding: 4px 10px;
             box-sizing: border-box;
@@ -260,6 +260,11 @@
     </div>
 
     <script>
+        // --- 0. UTILS ---
+        function getCssColor(varName) {
+            return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        }
+
         // --- 1. AUDIO ENGINE (Generative) ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let osc = null, gain = null;
@@ -405,8 +410,12 @@
         }
 
         function startLoadingSequence() {
+            // Get color from CSS variable for consistency
+            const greyColor = getCssColor('--sp-grey');
+            
             // Reset Screen
-            visibleCtx.fillStyle = "#e0e0e0"; visibleCtx.fillRect(0,0,256,192);
+            visibleCtx.fillStyle = greyColor; 
+            visibleCtx.fillRect(0,0,256,192);
             
             // Reset Text Position to TOP LEFT for loading
             osText.classList.remove('bottom-prompt');
@@ -454,7 +463,18 @@
             viewPort.className = '';
             viewPort.style.background = '#000';
             
-            // Show the success message at the bottom with GREY background
+            // --- THE FIX ---
+            // 1. Get the exact grey from CSS.
+            const greyColor = getCssColor('--sp-grey');
+            
+            // 2. Paint the bottom strip of the CANVAS directly. 
+            // This ensures the grey pixels are on the canvas layer, 
+            // matching the rest of the image rendering exactly.
+            // 24px height on 256x192 canvas roughly equals the visual height of the text area.
+            visibleCtx.fillStyle = greyColor;
+            visibleCtx.fillRect(0, 192 - 24, 256, 24);
+
+            // 3. Show the text (which now has transparent background in CSS)
             osText.innerText = "0 OK, 10:1";
             osText.classList.add('bottom-prompt');
             osText.style.display = 'block';
