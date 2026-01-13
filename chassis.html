@@ -89,6 +89,14 @@
             display: none;
             white-space: pre;
             text-shadow: 1px 1px 0 rgba(255,255,255,0.5);
+            pointer-events: none;
+        }
+
+        /* Class to move text to bottom for status messages */
+        #os-text.bottom-prompt {
+            top: auto !important;
+            bottom: 6px;
+            left: 6px;
         }
 
         /* --- CHASSIS & CONTROLS --- */
@@ -115,9 +123,8 @@
 
         .logo-text {
             font-family: Arial, sans-serif;
-            /* text-transform: uppercase; Removed so JV's SpecTape casing works */
             font-weight: bold;
-            font-size: 14px; /* Slightly larger to match original weight */
+            font-size: 14px;
             color: #888;
             letter-spacing: 0.5px;
             font-style: italic;
@@ -265,7 +272,6 @@
             } else if (type === 'data') {
                 osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
                 const now = audioCtx.currentTime;
-                // Generate chaotic data crunching sound
                 for(let i=0; i<100; i++) {
                     osc.frequency.setValueAtTime(Math.random() > 0.5 ? 1200 : 2000, now + (i*0.02));
                 }
@@ -285,11 +291,8 @@
         const ctx = speccyCanvas.getContext('2d', {willReadFrequently: true});
         const attrCanvas = document.getElementById('attrCanvas');
         const attrCtx = attrCanvas.getContext('2d');
-        
-        // Composite canvas to flatten layers for the animation
         const compositeCanvas = document.getElementById('compositeCanvas');
         const compCtx = compositeCanvas.getContext('2d');
-        
         const refImg = document.getElementById('refImg');
         const visibleCanvas = document.getElementById('visibleCanvas');
         const visibleCtx = visibleCanvas.getContext('2d');
@@ -298,7 +301,6 @@
         const PALETTE = ['#000000', '#0000D7', '#D70000', '#D700D7', '#00D700', '#00D7D7', '#D7D700', '#FFFFFF'];
 
         function autoConvertImage() {
-            // A. Create temp canvas for scaling
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = 256; tempCanvas.height = 192;
             const tCtx = tempCanvas.getContext('2d');
@@ -306,88 +308,60 @@
             tCtx.fillStyle = "white";
             tCtx.fillRect(0, 0, 256, 192);
             
-            // Centre and Scale (Preserving Aspect Ratio)
             const w = refImg.naturalWidth, h = refImg.naturalHeight;
             const s = Math.min(256/w, 192/h);
             const dx = (256-w*s)/2, dy = (192-h*s)/2;
             tCtx.drawImage(refImg, dx, dy, w*s, h*s);
 
-            // B. Get RAW Pixels (No Filters!)
             const imgDataObj = tCtx.getImageData(0, 0, 256, 192);
             const pixels = imgDataObj.data;
 
-            // C. Clear hidden Canvases
-            ctx.clearRect(0, 0, 256, 192); // Speccy Pixels
-            attrCtx.clearRect(0, 0, 256, 192); // Attributes
+            ctx.clearRect(0, 0, 256, 192);
+            attrCtx.clearRect(0, 0, 256, 192); 
             attrData.fill(56);
 
-            // D. Run Block Logic
             for (let by = 0; by < 24; by++) {
                 for (let bx = 0; bx < 32; bx++) {
                     processBlock(bx, by, pixels);
                 }
             }
             
-            // E. Draw Colours
             redrawAttributes();
 
-            // F. COMPOSITE (Flatten layers into one image for the animation)
             compCtx.fillStyle = "white"; 
-            compCtx.fillRect(0,0,256,192); // White base
+            compCtx.fillRect(0,0,256,192); 
             
-            // 1. Draw Attributes
             compCtx.globalAlpha = 1.0;
             compCtx.drawImage(attrCanvas, 0, 0);
             
-            // 2. Draw Pixels
             compCtx.globalAlpha = 1.0;
             compCtx.drawImage(speccyCanvas, 0, 0);
         }
 
         function processBlock(bx, by, pixels) {
             let blockColors = [];
-            
             for (let py = 0; py < 8; py++) {
                 for (let px = 0; px < 8; px++) {
                     const idx = (((by * 8 + py) * 256) + (bx * 8 + px)) * 4;
                     const r = pixels[idx], g = pixels[idx+1], b = pixels[idx+2];
-                    
-                    // Simple brightness calculation
                     const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
                     
-                    // If dark, draw a black pixel on the pixel layer
                     if (brightness < 128) {
                         ctx.fillStyle = "black";
                         ctx.fillRect(bx * 8 + px, by * 8 + py, 1, 1);
                     }
-                    
-                    // Collect colour for attribute decision
                     blockColors.push(getNearestSpeccyColor(r, g, b));
                 }
             }
-            
-            // Determine dominant colour for this block
             const counts = {};
             blockColors.forEach(c => counts[c] = (counts[c] || 0) + 1);
             const sorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-            
-            // Set Attribute
             attrData[by * 32 + bx] = (parseInt(sorted[0]) * 8);
         }
 
         function getNearestSpeccyColor(r, g, b) {
             let minDist = Infinity, bestIndex = 0;
-            const specRGB = [
-                [0,0,0],       // 0 Black
-                [0,0,215],     // 1 Blue
-                [215,0,0],     // 2 Red
-                [215,0,215],   // 3 Magenta
-                [0,215,0],     // 4 Green
-                [0,215,215],   // 5 Cyan
-                [215,215,0],   // 6 Yellow
-                [255,255,255]  // 7 White
-            ];
-            
+            const specRGB = [[0,0,0],[0,0,215],[215,0,0],[215,0,215],[0,215,0],[0,215,215],[215,215,0],[255,255,255]];
             specRGB.forEach((rgb, i) => {
                 const d = Math.sqrt((r-rgb[0])**2 + (g-rgb[1])**2 + (b-rgb[2])**2);
                 if (d < minDist) { minDist = d; bestIndex = i; }
@@ -416,9 +390,7 @@
             reader.onload = (e) => {
                 refImg.src = e.target.result;
                 refImg.onload = () => {
-                    // 1. Run conversion immediately (In background)
                     autoConvertImage(); 
-                    // 2. Start animation sequence
                     startLoadingSequence();
                 };
             };
@@ -428,7 +400,11 @@
         function startLoadingSequence() {
             // Reset Screen
             visibleCtx.fillStyle = "#e0e0e0"; visibleCtx.fillRect(0,0,256,192);
-            osText.style.display = 'block'; osText.innerText = "";
+            
+            // Reset Text Position to TOP LEFT for loading
+            osText.classList.remove('bottom-prompt');
+            osText.style.display = 'block'; 
+            osText.innerText = "";
             
             // Phase 1: Pilot
             playTone('pilot');
@@ -470,6 +446,11 @@
             stopTone();
             viewPort.className = '';
             viewPort.style.background = '#000';
+            
+            // Show the success message at the bottom
+            osText.innerText = "0 OK, 10:1";
+            osText.classList.add('bottom-prompt');
+            osText.style.display = 'block';
         }
 
         function saveImage() {
