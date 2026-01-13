@@ -1,5 +1,7 @@
 # SpecTape (Prototype)
 
+[![DOI](https://zenodo.org/badge/1133374325.svg)](https://doi.org/10.5281/zenodo.18230075)
+
 > **⚠️ NOTE: RAPID PROTOTYPE / PROOF OF CONCEPT**
 > This repository contains a "quick and dirty" HTML/JS implementation designed to validate the User Experience (UX) for a future native iOS application. The code prioritises immediate visual feedback over clean architecture. It is not intended for production use.
 
@@ -11,7 +13,7 @@ In an era of instant, high-definition photography, SpecTape forces the user to w
 
 **The core loop:**
 1.  **Capture:** The user takes a photo.
-2.  **The wait (the "Tape Loading" experience):** The app does not show the image immediately. Instead, it simulates a 2-minute tape loading sequence, complete with:
+2.  **The wait (the "tape loading" experience):** The app does not show the image immediately. Instead, it simulates a 2-minute tape loading sequence, complete with:
     * Generative square-wave audio (Pilot tones and Data crunching).
     * Accurate border colour flashing (Red/Cyan for pilot, Blue/Yellow for data).
     * Line-by-line raster rendering of the image.
