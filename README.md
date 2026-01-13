@@ -15,16 +15,16 @@ In an era of instant, high-definition photography, SpecTape forces the user to w
     * Generative square-wave audio (Pilot tones and Data crunching).
     * Accurate border colour flashing (Red/Cyan for pilot, Blue/Yellow for data).
     * Line-by-line raster rendering of the image.
-3.  **The Result:** A mathematically accurate ZX Spectrum graphical conversion (256x192 pixels, 2 colours per 8x8 block).
+3.  **The result:** A mathematically accurate ZX Spectrum graphical conversion (256x192 pixels, 2 colours per 8x8 block).
 
 ## Tech stack (Prototype)
 
 This POC is built as a single-file Progressive Web App (PWA) to allow for installation on iOS devices without TestFlight.
 
 * **Engine:** Vanilla JavaScript.
-* **Image Processing:** Custom block-processing logic mimicking the ZX Spectrum ULA chip + `Pixels.js` for vintage filtering.
+* **Image processing:** Custom block-processing logic mimicking the ZX Spectrum ULA chip + `Pixels.js` for vintage filtering.
 * **Audio:** Web Audio API (Oscillators) for real-time generative sound synthesis (no audio files used).
-* **Composite Rendering:** A multi-layered canvas approach (Attributes + Bitmap) flattened into a scanline buffer.
+* **Composite rendering:** A multi-layered canvas approach (Attributes + Bitmap) flattened into a scanline buffer.
 
 
 ## Future roadmap (Native app)
