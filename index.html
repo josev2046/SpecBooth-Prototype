@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>JV's ZX Tape Loader</title>
+    <script src="https://cdn.jsdelivr.net/gh/silvia-odwyer/pixels.js@0.8.1/dist/Pixels.js"></script>
+
+    <style>
+        :root {
+            --speccy-grey: #181818; 
+            --safe-area-bottom: env(safe-area-inset-bottom);
+        }
+        body {
+            background-color: var(--speccy-grey);
+            color: #ccc;
+            font-family: 'Courier New', monospace;
+            margin: 0; padding: 0;
+            height: 100vh;
+            display: flex; flex-direction: column;
+            overflow: hidden; touch-action: none;
+        }
+
+        /* --- THE TV SCREEN --- */
+        #viewport {
+            flex: 1;
+            display: flex;
+            justify-content: center; /* CSS syntax must remain 'center' */
+            align-items: center;
+            background: #000;
+            padding: 30px; /* Border Area */
+            transition: background 0s;
+        }
+
+        #stage {
+            position: relative;
+            width: 320px; height: 240px; /* 4:3 Aspect Ratio */
+            background: #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            image-rendering: pixelated;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+
+        #os-text {
+            position: absolute;
+            top: 10px; left: 10px;
+            color: #000;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 10;
+            display: none;
+            white-space: pre;
+            text-shadow: 1px 1px 0 #fff;
+        }
+
+        /* --- CONTROLS --- */
+        #controls {
+            background: #222;
+            padding: 20px;
+            padding-bottom: calc(20px + var(--safe-area-bottom));
+            display: flex; gap: 15px;
+            border-top: 1px solid #444;
+            justify-content: center;
+        }
+
+        .btn {
+            background: #333;
+            border: 2px solid #555;
+            color: #eee; /* CSS syntax must remain 'color' */
+            padding: 12px 24px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 16px;
+            border-radius: 4px;
+            display: flex; align-items: center; gap: 10px;
+            cursor: pointer;
+        }
+        .btn:active { background: #555; border-color: #fff; }
+
+        /* --- BORDER ANIMATIONS --- */
+        /* Note: British English spellings used in comments, standard CSS in code */
+        .pilot-border { animation: pilot 0.04s infinite step-end; }
+        .data-border { animation: data 0.04s infinite step-end; }
+
+        @keyframes pilot {
+            0% { background-color: #D70000; } /* Red */
+            50% { background-color: #00D7D7; } /* Cyan */
+        }
+        @keyframes data {
+            0% { background-color: #0000D7; } /* Blue */
+            25% { background-color: #D7D700; } /* Yellow */
+            50% { background-color: #0000D7; } 
+            75% { background-color: #D7D700; }
+        }
+
+        /* --- HIDDEN ENGINE ROOM --- */
+        #hidden-engine { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="viewport">
+        <div id="stage">
+            <canvas id="visibleCanvas" width="256" height="192"></canvas>
+            <div id="os-text"></div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <label class="btn">
+            <span>📼 LOAD ""</span>
+            <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(this)">
+        </label>
+        <div class="btn" onclick="saveImage()">
+            <span>💾 SAVE</span>
+        </div>
+    </div>
+
+    <div id="hidden-engine">
+        <img id="refImg" crossorigin="anonymous">
+        <canvas id="speccyCanvas" width="256" height="192"></canvas>
+        <canvas id="attrCanvas" width="256" height="192"></canvas>
+        <canvas id="compositeCanvas" width="256" height="192"></canvas>
+    </div>
+
+    <script>
+        // --- 1. AUDIO ENGINE (Generative) ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let osc = null, gain = null;
+
+        function playTone(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            if (osc) stopTone();
+            osc = audioCtx.createOscillator();
+            gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'square';
+            gain.gain.value = 0.1; 
+
+            if (type === 'pilot') {
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime); 
+            } else if (type === 'data') {
+                osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+                const now = audioCtx.currentTime;
+                // Generate chaotic data crunching sound
+                for(let i=0; i<100; i++) {
+                    osc.frequency.setValueAtTime(Math.random() > 0.5 ? 1200 : 2000, now + (i*0.02));
+                }
+            }
+            osc.start();
+        }
+
+        function stopTone() {
+            if (osc) {
+                try { osc.stop(); osc.disconnect(); } catch(e){}
+                osc = null;
+            }
+        }
+
+        // --- 2. CONVERSION ENGINE ---
+        const speccyCanvas = document.getElementById('speccyCanvas');
+        const ctx = speccyCanvas.getContext('2d', {willReadFrequently: true});
+        const attrCanvas = document.getElementById('attrCanvas');
+        const attrCtx = attrCanvas.getContext('2d');
+        
+        // New: Composite canvas to flatten layers for the animation
+        const compositeCanvas = document.getElementById('compositeCanvas');
+        const compCtx = compositeCanvas.getContext('2d');
+        
+        const refImg = document.getElementById('refImg');
+        const visibleCanvas = document.getElementById('visibleCanvas');
+        const visibleCtx = visibleCanvas.getContext('2d');
+
+        let attrData = new Array(768).fill(56); 
+        const PALETTE = ['#000000', '#0000D7', '#D70000', '#D700D7', '#00D700', '#00D7D7', '#D7D700', '#FFFFFF'];
+
+        function autoConvertImage() {
+            // A. Create temp canvas for scaling/filtering
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 256; tempCanvas.height = 192;
+            const tCtx = tempCanvas.getContext('2d');
+            
+            tCtx.fillStyle = "white";
+            tCtx.fillRect(0, 0, 256, 192);
+            
+            // Centre and Scale
+            const w = refImg.naturalWidth, h = refImg.naturalHeight;
+            const s = Math.min(256/w, 192/h);
+            const dx = (256-w*s)/2, dy = (192-h*s)/2;
+            tCtx.drawImage(refImg, dx, dy, w*s, h*s);
+
+            // B. Apply Filter (Vintage)
+            let imgDataObj = tCtx.getImageData(0, 0, 256, 192);
+            if (window.pixelsJS) {
+                imgDataObj = pixelsJS.filterImgData(imgDataObj, "vintage");
+            }
+            const pixels = imgDataObj.data;
+
+            // C. Clear hidden Canvases
+            ctx.clearRect(0, 0, 256, 192); // Speccy Pixels
+            attrCtx.clearRect(0, 0, 256, 192); // Attributes
+            attrData.fill(56);
+
+            // D. Run Block Logic
+            for (let by = 0; by < 24; by++) {
+                for (let bx = 0; bx < 32; bx++) {
+                    processBlock(bx, by, pixels);
+                }
+            }
+            
+            // E. Draw Colours
+            redrawAttributes();
+
+            // F. COMPOSITE (Flatten layers into one image for the animation)
+            compCtx.fillStyle = "white"; 
+            compCtx.fillRect(0,0,256,192); // White base
+            
+            // 1. Draw Attributes (Opacity 0.7)
+            compCtx.globalAlpha = 0.7;
+            compCtx.drawImage(attrCanvas, 0, 0);
+            
+            // 2. Draw Pixels (Opacity 1.0)
+            compCtx.globalAlpha = 1.0;
+            compCtx.drawImage(speccyCanvas, 0, 0);
+        }
+
+        function processBlock(bx, by, pixels) {
+            let blockColors = [];
+            for (let py = 0; py < 8; py++) {
+                for (let px = 0; px < 8; px++) {
+                    const idx = (((by * 8 + py) * 256) + (bx * 8 + px)) * 4;
+                    const r = pixels[idx], g = pixels[idx+1], b = pixels[idx+2];
+                    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+                    
+                    if (brightness < 128) {
+                        ctx.fillStyle = "black";
+                        ctx.fillRect(bx * 8 + px, by * 8 + py, 1, 1);
+                    }
+                    // Collect colour for attribute decision
+                    blockColors.push(getNearestSpeccyColor(r, g, b));
+                }
+            }
+            // Determine dominant colour
+            const counts = {};
+            blockColors.forEach(c => counts[c] = (counts[c] || 0) + 1);
+            const sorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+            attrData[by * 32 + bx] = (parseInt(sorted[0]) * 8);
+        }
+
+        function getNearestSpeccyColor(r, g, b) {
+            let minDist = Infinity, bestIndex = 0;
+            const specRGB = [[0,0,0], [0,0,215], [215,0,0], [215,0,215], [0,215,0], [0,215,215], [215,215,0], [255,255,255]];
+            specRGB.forEach((rgb, i) => {
+                const d = Math.sqrt((r-rgb[0])**2 + (g-rgb[1])**2 + (b-rgb[2])**2);
+                if (d < minDist) { minDist = d; bestIndex = i; }
+            });
+            return bestIndex;
+        }
+
+        function redrawAttributes() {
+            attrCtx.clearRect(0, 0, 256, 192); 
+            for (let i = 0; i < 768; i++) { 
+                const paper = (attrData[i] >> 3) & 7; 
+                if (paper !== 7) { 
+                    attrCtx.fillStyle = PALETTE[paper]; 
+                    attrCtx.fillRect((i % 32) * 8, Math.floor(i / 32) * 8, 8, 8); 
+                } 
+            }
+        }
+
+        // --- 3. ANIMATION LOGIC ---
+        const viewPort = document.getElementById('viewport');
+        const osText = document.getElementById('os-text');
+
+        function handleFile(input) {
+            if(!input.files[0]) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                refImg.src = e.target.result;
+                refImg.onload = () => {
+                    // 1. Run conversion immediately (In background)
+                    autoConvertImage(); 
+                    // 2. Start animation sequence
+                    startLoadingSequence();
+                };
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+
+        function startLoadingSequence() {
+            // Reset Screen
+            visibleCtx.fillStyle = "white"; visibleCtx.fillRect(0,0,256,192);
+            osText.style.display = 'block'; osText.innerText = "";
+            
+            // Phase 1: Pilot
+            playTone('pilot');
+            viewPort.className = 'pilot-border';
+            
+            setTimeout(() => { osText.innerText = "Program: loader"; }, 800);
+
+            setTimeout(() => {
+                // Phase 2: Data
+                viewPort.className = 'data-border';
+                osText.innerText += "\nBytes: image";
+                playTone('data');
+                setTimeout(() => { osText.style.display = 'none'; }, 200);
+
+                // Start Line Renderer
+                startLineRenderer();
+            }, 2500);
+        }
+
+        function startLineRenderer() {
+            let y = 0;
+            const step = 2; // Pixels per tick
+            const timer = setInterval(() => {
+                if (y >= 192) {
+                    clearInterval(timer);
+                    finishLoading();
+                    return;
+                }
+                // Copy from the COMPOSITE canvas
+                visibleCtx.drawImage(compositeCanvas, 0, y, 256, step, 0, y, 256, step);
+                y += step;
+                if(osc && Math.random() > 0.8) {
+                    osc.frequency.setValueAtTime(Math.random()*1000 + 500, audioCtx.currentTime);
+                }
+            }, 15);
+        }
+
+        function finishLoading() {
+            stopTone();
+            viewPort.className = '';
+            viewPort.style.background = '#181818'; // Reset to grey
+        }
+
+        function saveImage() {
+            const link = document.createElement('a');
+            link.download = 'zx-art.png';
+            link.href = compositeCanvas.toDataURL(); // Save the flattened result
+            link.click();
+        }
+    </script>
+</body>
+</html>
