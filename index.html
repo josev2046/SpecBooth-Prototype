@@ -19,7 +19,7 @@
             --sp-green: #00D700;
             --sp-cyan: #00D7D7;
             --sp-yellow: #D7D700;
-            --sp-white: #e0e0e0; /* Matches the video's grey-white */
+            --sp-white: #e0e0e0; 
             
             --case-black: #1a1a1a;
             --key-grey: #2d2d2d;
@@ -44,10 +44,13 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #000;
-            padding: 20px;
+            background: var(--sp-white); /* Default to Grey (Paper color) */
+            padding: 40px; 
             transition: background 0s;
             position: relative;
+            overflow: hidden;
+            /* Ensure background repeats for the animation */
+            background-repeat: repeat;
         }
 
         /* CRT Scanline Effect Overlay */
@@ -66,9 +69,9 @@
             position: relative;
             width: 320px; height: 240px; /* 4:3 Aspect Ratio */
             background: var(--sp-white);
-            box-shadow: 0 0 30px rgba(0,0,0,0.9);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
             image-rendering: pixelated;
-            border: 1px solid #333;
+            z-index: 5;
         }
 
         canvas {
@@ -114,6 +117,7 @@
             gap: 15px;
             border-top: 2px solid #333;
             box-shadow: inset 0 2px 5px rgba(255,255,255,0.1);
+            z-index: 30;
         }
 
         .sinclair-branding {
@@ -196,20 +200,39 @@
                 0 0 0 rgba(0,0,0,0);
         }
 
-        /* --- BORDER ANIMATIONS --- */
-        /* Updated to match video: Pilot is Cyan/Red, Data is Blue/Yellow */
-        .pilot-border { animation: pilot 0.04s infinite step-end; }
-        .data-border { animation: data 0.04s infinite step-end; }
+        /* --- ANIMATED RASTER STRIPES --- */
+        /* We removed !important and fix the conflict in JS instead */
 
-        @keyframes pilot {
-            0% { background-color: var(--sp-red); }
-            50% { background-color: var(--sp-cyan); }
+        /* 1. Pilot Tone: Cyan and Red Stripes */
+        #viewport.pilot-border { 
+            background-image: repeating-linear-gradient(
+                to bottom,
+                var(--sp-cyan),
+                var(--sp-cyan) 15px,
+                var(--sp-red) 15px,
+                var(--sp-red) 30px
+            );
+            /* Fast, harsh jitter using steps() to mimic analog instability */
+            animation: jitter 0.08s infinite steps(2);
         }
         
-        @keyframes data {
-            /* Classic Blue and Yellow stripes */
-            0% { background-color: var(--sp-blue); }
-            50% { background-color: var(--sp-yellow); }
+        /* 2. Data Block: Blue and Yellow Stripes */
+        #viewport.data-border { 
+            background-image: repeating-linear-gradient(
+                to bottom,
+                var(--sp-blue),
+                var(--sp-blue) 15px,
+                var(--sp-yellow) 15px,
+                var(--sp-yellow) 30px
+            );
+            /* Even faster jitter for data segments */
+            animation: jitter 0.04s infinite steps(2);
+        }
+
+        /* Jumps the background position up and down rapidly */
+        @keyframes jitter {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 15px; }
         }
 
         /* --- HIDDEN ENGINE ROOM --- */
@@ -277,7 +300,6 @@
             } else if (type === 'data') {
                 osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
                 const now = audioCtx.currentTime;
-                // Generate the "screech"
                 for(let i=0; i<300; i++) {
                     osc.frequency.setValueAtTime(Math.random() > 0.5 ? 1200 : 2000, now + (i*0.01));
                 }
@@ -305,7 +327,6 @@
 
         let attrData = new Array(768).fill(56); 
         
-        // Exact Spectrum Palette with the correct Grey at index 7
         const PALETTE = ['#000000', '#0000D7', '#D70000', '#D700D7', '#00D700', '#00D7D7', '#D7D700', '#e0e0e0'];
 
         function autoConvertImage() {
@@ -313,7 +334,6 @@
             tempCanvas.width = 256; tempCanvas.height = 192;
             const tCtx = tempCanvas.getContext('2d');
             
-            // Use correct grey background
             tCtx.fillStyle = PALETTE[7];
             tCtx.fillRect(0, 0, 256, 192);
             
@@ -325,7 +345,6 @@
             const imgDataObj = tCtx.getImageData(0, 0, 256, 192);
             const pixels = imgDataObj.data;
 
-            // Clear canvases
             ctx.clearRect(0, 0, 256, 192);
             attrCtx.clearRect(0, 0, 256, 192); 
             attrData.fill(56);
@@ -338,7 +357,6 @@
             
             redrawAttributes();
 
-            // Create Composite (Colored) version for later use
             compCtx.fillStyle = PALETTE[7]; 
             compCtx.fillRect(0,0,256,192); 
             compCtx.globalAlpha = 1.0;
@@ -382,7 +400,6 @@
             attrCtx.clearRect(0, 0, 256, 192); 
             for (let i = 0; i < 768; i++) { 
                 const paper = (attrData[i] >> 3) & 7; 
-                // Always fill, using PALETTE[7] for white to match grey background
                 attrCtx.fillStyle = PALETTE[paper === 7 ? 7 : paper];
                 attrCtx.fillRect((i % 32) * 8, Math.floor(i / 32) * 8, 8, 8); 
             }
@@ -408,7 +425,11 @@
         function startLoadingSequence() {
             const greyColor = getCssColor('--sp-white');
             
-            // Reset Screen
+            // Clear previous states
+            viewPort.style.background = '';
+            viewPort.className = '';
+            
+            // Reset Screen to Grey
             visibleCtx.fillStyle = greyColor; 
             visibleCtx.fillRect(0,0,256,192);
             
@@ -416,72 +437,73 @@
             osText.style.display = 'block'; 
             osText.innerText = "";
             
-            // Phase 1: Pilot Tone
-            playTone('pilot');
-            viewPort.className = 'pilot-border';
-            
-            setTimeout(() => { osText.innerText = "Program: loader"; }, 500);
+            // Cyan Leader ("Framing color")
+            viewPort.style.backgroundColor = PALETTE[5]; 
+
+            // Phase 1: Pilot Tone (Red/Cyan Stripes)
+            setTimeout(() => {
+                playTone('pilot');
+                // FIX: Clear the inline cyan color so the striped class takes over and animates
+                viewPort.style.background = ''; 
+                viewPort.className = 'pilot-border';
+                osText.innerText = "Program: loader";
+            }, 600);
 
             setTimeout(() => {
                 // Phase 2: Data Header
-                viewPort.className = 'pilot-border'; // Keep pilot briefly
                 osText.innerText += "\nBytes: art";
                 
-                // Slight pause before data...
                 setTimeout(() => {
-                    viewPort.className = 'data-border'; // Switch to Blue/Yellow stripes
-                    osText.style.display = 'none'; // Hide text as image loads over it
+                    // Switch to Data Stripes
+                    // FIX: Clear inline style again just to be safe
+                    viewPort.style.background = '';
+                    viewPort.className = 'data-border'; 
+                    osText.style.display = 'none'; 
                     playTone('data');
                     startBitmapLoad();
                 }, 1000);
-            }, 1500);
+            }, 2100);
         }
 
-        // Stage 1: Load Pixels (Black on Grey)
         function startBitmapLoad() {
             let y = 0;
             const step = 2; 
             const timer = setInterval(() => {
                 if (y >= 192) {
                     clearInterval(timer);
-                    startAttributeLoad(); // Trigger color splash
+                    startAttributeLoad(); 
                     return;
                 }
-                // Draw ONLY the black pixels (speccyCanvas) onto the grey background
                 visibleCtx.drawImage(speccyCanvas, 0, y, 256, step, 0, y, 256, step);
                 
                 y += step;
-                // Modulation effect
                 if(osc && Math.random() > 0.8) {
                     osc.frequency.setValueAtTime(Math.random()*1000 + 500, audioCtx.currentTime);
                 }
             }, 15);
         }
 
-        // Stage 2: Load Colors (Composite)
         function startAttributeLoad() {
             let y = 0;
-            const step = 8; // Colors load much faster
+            const step = 8; 
             const timer = setInterval(() => {
                 if (y >= 192) {
                     clearInterval(timer);
                     finishLoading();
                     return;
                 }
-                // Draw the FULL colored image over the black pixels
                 visibleCtx.drawImage(compositeCanvas, 0, y, 256, step, 0, y, 256, step);
                 y += step;
-            }, 5); // Very fast interval
+            }, 5); 
         }
 
         function finishLoading() {
             stopTone();
             viewPort.className = '';
+            // Solid Black finish
             viewPort.style.background = '#000';
             
             const greyColor = getCssColor('--sp-white');
-            
-            // Paint bottom area
             visibleCtx.fillStyle = greyColor;
             visibleCtx.fillRect(0, 192 - 24, 256, 24);
 
