@@ -5,13 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>JV's SpecTape + Video Rec</title>
+    <title>JV's SpecTape Mobile</title>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
         :root {
-            /* Authentic Speccy Palette */
             --sp-black: #000000;
             --sp-blue: #0000D7;
             --sp-red: #D70000;
@@ -35,7 +34,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            touch-action: none;
+            touch-action: manipulation; /* Improved touch handling */
         }
 
         /* --- THE TV SCREEN --- */
@@ -45,11 +44,10 @@
             justify-content: center;
             align-items: center;
             background: var(--sp-white);
-            padding: 10vmin; 
+            padding: 5vmin; 
             transition: background 0s;
             position: relative;
             overflow: hidden;
-            background-repeat: repeat;
         }
 
         /* CRT Scanline Effect Overlay */
@@ -66,11 +64,15 @@
 
         #stage {
             position: relative;
-            width: 320px; height: 240px; /* 4:3 Aspect Ratio */
+            width: 320px; height: 240px;
             background: var(--sp-white);
             box-shadow: 0 0 30px rgba(0,0,0,0.5);
             image-rendering: pixelated;
             z-index: 5;
+            /* Scale down for small mobile screens if needed */
+            max-width: 90vw;
+            height: auto;
+            aspect-ratio: 4/3;
         }
 
         canvas {
@@ -151,14 +153,14 @@
         #controls {
             display: flex;
             justify-content: center;
-            gap: 20px;
+            gap: 15px; /* Slightly tighter for mobile */
         }
 
         .rubber-key {
             background: var(--key-grey);
             border: none;
             color: #eee;
-            padding: 15px 20px;
+            padding: 12px 10px; /* Adjusted padding */
             font-family: Arial, sans-serif;
             font-weight: bold;
             font-size: 14px;
@@ -176,32 +178,31 @@
                 0 6px 0 #111,
                 0 8px 5px rgba(0,0,0,0.4);
             transition: all 0.1s ease;
-            width: 100px;
+            width: 85px; /* Tighter width */
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         /* --- RECORD KEY STYLING --- */
         .rubber-key.rec-key {
-            background: #a00; /* Dark Red */
+            background: #a00;
         }
         .rubber-key.rec-key:active {
             background: #800;
         }
         
-        /* STATE: RECORDING (Pulsing Red) */
         .rubber-key.rec-key.recording {
             background: #f00; 
             box-shadow: 0 0 10px #f00, 0 6px 0 #300;
             animation: pulse 1s infinite;
         }
 
-        /* STATE: TAPE READY (Pulsing Green) */
         .rubber-key.rec-key.tape-ready {
             background: #00aa00; 
             box-shadow: 0 0 10px #0f0, 0 6px 0 #030;
             animation: pulse 2s infinite;
         }
         
-        /* Command Text Color Adjustments */
         .rubber-key.rec-key span.cmd { color: #ffcccc; }
         .rubber-key.rec-key.tape-ready span.cmd { color: #ccffcc; }
 
@@ -231,8 +232,6 @@
         }
 
         /* --- ANIMATED RASTER STRIPES --- */
-        
-        /* 1. Pilot Tone: Cyan and Red Stripes */
         #viewport.pilot-border { 
             background-image: repeating-linear-gradient(
                 to bottom,
@@ -244,7 +243,6 @@
             animation: jitter 0.08s infinite steps(2);
         }
         
-        /* 2. Data Block: Blue and Yellow Stripes */
         #viewport.data-border { 
             background-image: repeating-linear-gradient(
                 to bottom,
@@ -314,22 +312,24 @@
         // --- 1. AUDIO ENGINE ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let osc = null, gain = null;
-
-        // Create a MediaStreamDestination to capture audio for the video recorder
         const audioDest = audioCtx.createMediaStreamDestination();
 
+        // Helper to unlock audio on mobile
+        function unlockAudio() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
         function playTone(type) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+            unlockAudio();
             if (osc) stopTone();
             osc = audioCtx.createOscillator();
             gain = audioCtx.createGain();
             
             osc.connect(gain);
-            
-            // Connect to Speakers
-            gain.connect(audioCtx.destination);
-            // Connect to Recorder
-            gain.connect(audioDest);
+            gain.connect(audioCtx.destination); // Speakers
+            gain.connect(audioDest);            // Recorder
 
             osc.type = 'square';
             gain.gain.value = 0.1; 
@@ -353,24 +353,28 @@
             }
         }
 
-        // --- 2. VIDEO RECORDER ENGINE ---
+        // --- 2. VIDEO RECORDER ENGINE (MOBILE OPTIMIZED) ---
         let mediaRecorder;
         let recordedChunks = [];
         let isRecording = false;
         let videoUrl = null;
         let animationFrameId;
+        let finalMimeType = '';
+        let finalExtension = 'webm';
         
         const masterCanvas = document.getElementById('masterTapeCanvas');
         const masterCtx = masterCanvas.getContext('2d');
 
         function toggleVideoRecord() {
+            unlockAudio(); // Critical for Mobile: Unlock audio on tap
+            
             const btn = document.querySelector('.rec-key');
             const cmdSpan = btn.querySelector('.cmd');
 
-            // STATE 3: TAPE READY (User clicks Green button to Download)
+            // STATE 3: EJECT (Download)
             if (btn.classList.contains('tape-ready')) {
                 downloadTape();
-                // Reset to Idle
+                // Reset
                 btn.classList.remove('tape-ready');
                 cmdSpan.innerText = "VIDEO";
                 if(videoUrl) URL.revokeObjectURL(videoUrl);
@@ -380,7 +384,7 @@
                 return;
             }
 
-            // STATE 2: STOP RECORDING (User clicks Flashing Red button)
+            // STATE 2: STOP
             if (isRecording) {
                 if(mediaRecorder && mediaRecorder.state !== 'inactive') {
                     mediaRecorder.stop();
@@ -391,11 +395,10 @@
                 return;
             }
 
-            // STATE 1: START RECORDING (User clicks Red button)
+            // STATE 1: ARM
             btn.classList.add('recording');
             isRecording = true;
             
-            // Visual feedback
             const oldText = osText.innerText;
             osText.style.display = 'block';
             osText.innerText = "REC ARMED";
@@ -410,26 +413,49 @@
         }
 
         function startInternalRecording() {
-            // Only start if user actually armed the tape
             if (!isRecording) return;
-
             recordedChunks = [];
-            // Capture canvas at 30FPS
-            const canvasStream = masterCanvas.captureStream(30);
             
-            // Merge Audio + Video
+            const canvasStream = masterCanvas.captureStream(); // Auto FPS is safer for mobile
+            
             const combinedTracks = [
                 ...canvasStream.getVideoTracks(),
                 ...audioDest.stream.getAudioTracks()
             ];
             const combinedStream = new MediaStream(combinedTracks);
 
-            let options = { mimeType: 'video/webm; codecs=vp9' };
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = { mimeType: 'video/webm' };
+            // AUTO-DETECT MIME TYPE (Mobile Safari prefers mp4, others webm)
+            const mimeTypes = [
+                "video/mp4",
+                "video/webm;codecs=vp9",
+                "video/webm;codecs=vp8",
+                "video/webm"
+            ];
+
+            let options = null;
+            for (let type of mimeTypes) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    options = { mimeType: type };
+                    finalMimeType = type;
+                    // Set extension based on type
+                    finalExtension = type.includes("mp4") ? "mp4" : "webm";
+                    console.log("Selected MIME:", type);
+                    break;
+                }
             }
 
-            mediaRecorder = new MediaRecorder(combinedStream, options);
+            if (!options) {
+                alert("Browser doesn't support MediaRecorder!");
+                return;
+            }
+
+            try {
+                mediaRecorder = new MediaRecorder(combinedStream, options);
+            } catch (e) {
+                console.error("Recorder Error:", e);
+                // Fallback attempt without specific options
+                mediaRecorder = new MediaRecorder(combinedStream);
+            }
 
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0) recordedChunks.push(e.data);
@@ -441,26 +467,22 @@
             renderMasterTape();
         }
 
-        // Renders the scene onto the hidden canvas for the recorder
         function renderMasterTape() {
             if (!isRecording) return;
 
-            // 1. Draw Border
             const borderState = viewPort.className;
-            
             if (borderState === 'pilot-border') {
-                drawStripes(masterCtx, ['#00D7D7', '#D70000'], 15); // Cyan/Red
+                drawStripes(masterCtx, ['#00D7D7', '#D70000'], 15);
             } else if (borderState === 'data-border') {
-                drawStripes(masterCtx, ['#0000D7', '#D7D700'], 8); // Blue/Yellow
+                drawStripes(masterCtx, ['#0000D7', '#D7D700'], 8);
             } else {
                 const bgColor = viewPort.style.backgroundColor || getCssColor('--sp-white');
                 masterCtx.fillStyle = bgColor;
                 masterCtx.fillRect(0,0,320,240);
             }
 
-            // 2. Draw Screen
+            // Draw Screen
             masterCtx.drawImage(visibleCanvas, 32, 24);
-
             animationFrameId = requestAnimationFrame(renderMasterTape);
         }
 
@@ -468,7 +490,6 @@
         function drawStripes(ctx, colors, speed) {
             stripeOffset = (stripeOffset + speed) % 30; 
             const stripeHeight = 15;
-            
             for (let y = -30; y < 240; y += stripeHeight) {
                 const colorIndex = Math.floor((y + stripeOffset) / stripeHeight) % 2;
                 ctx.fillStyle = colors[Math.abs(colorIndex)];
@@ -476,12 +497,10 @@
             }
         }
 
-        // Called when recording finishes
         function exportVideo() {
-            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const blob = new Blob(recordedChunks, { type: finalMimeType || 'video/webm' });
             videoUrl = URL.createObjectURL(blob);
 
-            // Change UI to EJECT state
             const btn = document.querySelector('.rec-key');
             const cmdSpan = btn.querySelector('.cmd');
             
@@ -499,10 +518,12 @@
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = videoUrl;
-            a.download = 'SPECTRUM_LOAD.webm';
+            a.download = `SPECTRUM_LOAD.${finalExtension}`;
             document.body.appendChild(a);
             a.click();
-            document.body.removeChild(a);
+            setTimeout(() => {
+                document.body.removeChild(a);
+            }, 100);
         }
 
         // --- 3. CONVERSION ENGINE ---
@@ -544,14 +565,11 @@
                     processBlock(bx, by, pixels);
                 }
             }
-            
             redrawAttributes();
-
+            
             compCtx.fillStyle = PALETTE[7]; 
             compCtx.fillRect(0,0,256,192); 
-            compCtx.globalAlpha = 1.0;
             compCtx.drawImage(attrCanvas, 0, 0);
-            compCtx.globalAlpha = 1.0;
             compCtx.drawImage(speccyCanvas, 0, 0);
         }
 
@@ -600,6 +618,7 @@
         const osText = document.getElementById('os-text');
 
         function handleFile(input) {
+            unlockAudio(); // Ensure audio context is ready on file pick
             if(!input.files[0]) return;
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -613,41 +632,30 @@
         }
 
         function startLoadingSequence() {
-            // Trigger recorder if it was armed
             if (isRecording) startInternalRecording();
 
             const greyColor = getCssColor('--sp-white');
-            
-            // 1. Reset everything
             viewPort.style.background = '';
             viewPort.className = '';
-            
             visibleCtx.fillStyle = greyColor; 
             visibleCtx.fillRect(0,0,256,192);
-            
             osText.classList.remove('bottom-prompt');
             osText.style.display = 'block'; 
             osText.innerText = "";
-            
-            // 2. FRAMING
             viewPort.style.backgroundColor = PALETTE[5]; 
             osText.innerText = "Program: loader";
 
-            // 3. PILOT
             setTimeout(() => {
                 playTone('pilot');
                 viewPort.style.backgroundColor = ''; 
                 viewPort.className = 'pilot-border'; 
             }, 2000);
 
-            // 4. HEADER INFO
             setTimeout(() => {
                 osText.innerText += "\nBytes: art";
                 stopTone(); 
                 viewPort.className = ''; 
                 viewPort.style.backgroundColor = greyColor; 
-                
-                // 5. DATA LOAD
                 setTimeout(() => {
                     viewPort.style.backgroundColor = '';
                     viewPort.className = 'data-border'; 
@@ -668,7 +676,6 @@
                     return;
                 }
                 visibleCtx.drawImage(speccyCanvas, 0, y, 256, step, 0, y, 256, step);
-                
                 y += step;
                 if(osc && Math.random() > 0.8) {
                     osc.frequency.setValueAtTime(Math.random()*1000 + 500, audioCtx.currentTime);
@@ -693,18 +700,14 @@
         function finishLoading() {
             stopTone();
             viewPort.className = '';
-            
             const greyColor = getCssColor('--sp-white');
             viewPort.style.backgroundColor = greyColor;
-            
             visibleCtx.fillStyle = greyColor;
             visibleCtx.fillRect(0, 192 - 24, 256, 24);
-
             osText.innerText = "0 OK, 10:1";
             osText.classList.add('bottom-prompt');
             osText.style.display = 'block';
 
-            // Pause the tape logic (Stop recorder, wait for Eject)
             if (isRecording) {
                 setTimeout(() => {
                     if(mediaRecorder && mediaRecorder.state !== 'inactive') {
