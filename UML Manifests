@@ -1,4 +1,162 @@
 @startuml
+!theme plain
+autonumber
+skinparam backgroundColor #FFFFFF
+
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI", Arial, sans-serif
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+' --- Styling ---
+skinparam sequence {
+    ArrowColor #2C3E50
+    ActorBorderColor #2C3E50
+    LifeLineBorderColor #7F8C8D
+    LifeLineBackgroundColor #ECF0F1
+    
+    ParticipantBorderColor #2980B9
+    ParticipantBackgroundColor #3498DB
+    ParticipantFontColor #FFFFFF
+    ParticipantFontSize 14
+    ParticipantPadding 20
+    
+    BoxBorderColor #BDC3C7
+    BoxBackgroundColor #F9F9F9
+    BoxPadding 10
+}
+
+actor "End User" as User
+
+box "Presentation Layer" #F4F6F6
+    participant "DOM / Canvas\n(UI View)" as UI
+end box
+
+box "Application Controller" #EBF5FB
+    participant "Main Script\n(Event Handler)" as Core
+end box
+
+box "Processing Engine" #FEF9E7
+    participant "Image Processor\n(Bitwise Logic)" as Img
+    participant "Audio System\n(Web Audio API)" as Audio
+    participant "Video Encoder\n(MediaRecorder)" as Rec
+end box
+
+title JV's SpecTape-Prototype
+
+== Phase 1: System Initialization ==
+User -> UI: Access Application
+UI -> Core: Initialize DOM & Variables
+activate Core
+Core -> Audio: Create AudioContext (Suspended)
+Core -> Rec: Prepare MediaStreamDestination
+deactivate Core
+
+== Phase 2: Video Recording (Optional Arming) ==
+note over User, Rec: This runs asynchronously in parallel if triggered
+User -> UI: Toggle "VIDEO" (Record Key)
+UI -> Core: toggleVideoRecord()
+activate Core
+    Core -> Audio: unlockAudio()
+    
+    alt State: Start Recording
+        Core -> Rec: MediaRecorder.start(mimeType)
+        activate Rec
+        Core -> UI: Update UI (State: Armed)
+        
+        loop Animation Frame Loop (60fps)
+            Core -> UI: Capture Canvas Stream
+            Core -> Rec: Push Chunk (Video + Audio)
+            Core -> UI: Render CSS Border Effects
+        end
+        
+    else State: Stop/Eject
+        Core -> Rec: MediaRecorder.stop()
+        deactivate Rec
+        Rec --> Core: Blob Available (ondataavailable)
+        Core -> Core: exportVideo() -> Generate URL
+        Core -> UI: Display "EJECT" Prompt
+    end
+deactivate Core
+
+== Phase 3: File Processing & Simulation ==
+User -> UI: Input File (Image)
+UI -> Core: handleFile(event)
+activate Core
+    Core -> Core: FileReader.readAsDataURL()
+    
+    group #White Image Processing (Instant)
+        Core -> Img: autoConvertImage(RawImage)
+        activate Img
+        Img -> Img: Resize to 256x192
+        loop Iterate 768 Blocks (32x24)
+            Img -> Img: Quantize Colors (Luminance check)
+            Img -> Img: Calculate Attribute Byte (Paper/Ink)
+        end
+        Img --> Core: Return Composite Bitmap & Attr Data
+        deactivate Img
+    end
+
+    group #FDF2E9 Loading Simulation (Visual/Audio)
+        Core -> UI: Clear Viewport (Grey)
+        Core -> UI: Display Header "Program: loader"
+        
+        note right of Core: Pilot Tone Phase (2000ms)
+        Core -> Audio: playTone('pilot', 800Hz)
+        activate Audio
+        Core -> UI: Apply CSS 'pilot-border' (Cyan/Red)
+        
+        ... Wait 2s ...
+        
+        note right of Core: Data Transfer Phase
+        Core -> Audio: Stop Tone
+        deactivate Audio
+        Core -> Audio: playTone('data', RandomHz)
+        activate Audio
+        Core -> UI: Apply CSS 'data-border' (Blue/Yellow)
+        
+        par Parallel Rendering
+            loop Bitmap Render Interval (15ms)
+                Core -> UI: visibleCtx.drawImage (Pixels)
+            end
+            else
+            loop Attribute Render Interval (5ms)
+                Core -> UI: visibleCtx.drawImage (Color Overlay)
+            end
+        end
+        
+        Core -> Audio: Stop Tone
+        deactivate Audio
+        Core -> UI: Remove Border Effects
+        Core -> UI: Display "0 OK, 10:1"
+    end
+    
+    opt If Recording was Active
+        Core -> Rec: Force Stop
+        Core -> UI: Update State to "Paused"
+    end
+
+deactivate Core
+
+== Phase 4: Export Artifacts ==
+opt Download Video
+    User -> UI: Click "EJECT"
+    UI -> Core: downloadTape()
+    Core -> User: Trigger .webm/.mp4 Download
+end
+
+opt Save Static Image
+    User -> UI: Click "SAVE"
+    UI -> Core: saveImage()
+    Core -> UI: compositeCanvas.toDataURL()
+    UI -> User: Trigger .png Download
+end
+
+@enduml
+
+--
+
+@startuml
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
 skinparam maxMessageSize 250
