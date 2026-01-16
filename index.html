@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>JV's SpecTape Mobile</title>
+    <title>JV's SpecTape Mobile (Pixel Only)</title>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
@@ -19,7 +19,7 @@
             --sp-cyan: #00D7D7;
             --sp-yellow: #D7D700;
             --sp-white: #e0e0e0; 
-            
+             
             --case-black: #1a1a1a;
             --key-grey: #2d2d2d;
             --safe-area-bottom: env(safe-area-inset-bottom);
@@ -34,7 +34,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            touch-action: manipulation; /* Improved touch handling */
+            touch-action: manipulation;
         }
 
         /* --- THE TV SCREEN --- */
@@ -69,7 +69,6 @@
             box-shadow: 0 0 30px rgba(0,0,0,0.5);
             image-rendering: pixelated;
             z-index: 5;
-            /* Scale down for small mobile screens if needed */
             max-width: 90vw;
             height: auto;
             aspect-ratio: 4/3;
@@ -153,14 +152,14 @@
         #controls {
             display: flex;
             justify-content: center;
-            gap: 15px; /* Slightly tighter for mobile */
+            gap: 15px; 
         }
 
         .rubber-key {
             background: var(--key-grey);
             border: none;
             color: #eee;
-            padding: 12px 10px; /* Adjusted padding */
+            padding: 12px 10px;
             font-family: Arial, sans-serif;
             font-weight: bold;
             font-size: 14px;
@@ -178,12 +177,11 @@
                 0 6px 0 #111,
                 0 8px 5px rgba(0,0,0,0.4);
             transition: all 0.1s ease;
-            width: 85px; /* Tighter width */
+            width: 85px;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* --- RECORD KEY STYLING --- */
         .rubber-key.rec-key {
             background: #a00;
         }
@@ -314,7 +312,6 @@
         let osc = null, gain = null;
         const audioDest = audioCtx.createMediaStreamDestination();
 
-        // Helper to unlock audio on mobile
         function unlockAudio() {
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
@@ -328,8 +325,8 @@
             gain = audioCtx.createGain();
             
             osc.connect(gain);
-            gain.connect(audioCtx.destination); // Speakers
-            gain.connect(audioDest);            // Recorder
+            gain.connect(audioCtx.destination); 
+            gain.connect(audioDest);            
 
             osc.type = 'square';
             gain.gain.value = 0.1; 
@@ -353,7 +350,7 @@
             }
         }
 
-        // --- 2. VIDEO RECORDER ENGINE (MOBILE OPTIMIZED) ---
+        // --- 2. VIDEO RECORDER ENGINE ---
         let mediaRecorder;
         let recordedChunks = [];
         let isRecording = false;
@@ -366,7 +363,7 @@
         const masterCtx = masterCanvas.getContext('2d');
 
         function toggleVideoRecord() {
-            unlockAudio(); // Critical for Mobile: Unlock audio on tap
+            unlockAudio();
             
             const btn = document.querySelector('.rec-key');
             const cmdSpan = btn.querySelector('.cmd');
@@ -374,7 +371,6 @@
             // STATE 3: EJECT (Download)
             if (btn.classList.contains('tape-ready')) {
                 downloadTape();
-                // Reset
                 btn.classList.remove('tape-ready');
                 cmdSpan.innerText = "VIDEO";
                 if(videoUrl) URL.revokeObjectURL(videoUrl);
@@ -416,7 +412,7 @@
             if (!isRecording) return;
             recordedChunks = [];
             
-            const canvasStream = masterCanvas.captureStream(); // Auto FPS is safer for mobile
+            const canvasStream = masterCanvas.captureStream();
             
             const combinedTracks = [
                 ...canvasStream.getVideoTracks(),
@@ -424,7 +420,6 @@
             ];
             const combinedStream = new MediaStream(combinedTracks);
 
-            // AUTO-DETECT MIME TYPE (Mobile Safari prefers mp4, others webm)
             const mimeTypes = [
                 "video/mp4",
                 "video/webm;codecs=vp9",
@@ -437,7 +432,6 @@
                 if (MediaRecorder.isTypeSupported(type)) {
                     options = { mimeType: type };
                     finalMimeType = type;
-                    // Set extension based on type
                     finalExtension = type.includes("mp4") ? "mp4" : "webm";
                     console.log("Selected MIME:", type);
                     break;
@@ -453,7 +447,6 @@
                 mediaRecorder = new MediaRecorder(combinedStream, options);
             } catch (e) {
                 console.error("Recorder Error:", e);
-                // Fallback attempt without specific options
                 mediaRecorder = new MediaRecorder(combinedStream);
             }
 
@@ -481,7 +474,6 @@
                 masterCtx.fillRect(0,0,320,240);
             }
 
-            // Draw Screen
             masterCtx.drawImage(visibleCanvas, 32, 24);
             animationFrameId = requestAnimationFrame(renderMasterTape);
         }
@@ -567,9 +559,13 @@
             }
             redrawAttributes();
             
+            // --- FIX FOR PIXEL ONLY EXPORT ---
+            // Previously, this combined attrCanvas and speccyCanvas.
+            // I have removed the attribute layer from the composite
+            // so the saved image is strictly black pixels on white background.
             compCtx.fillStyle = PALETTE[7]; 
             compCtx.fillRect(0,0,256,192); 
-            compCtx.drawImage(attrCanvas, 0, 0);
+            // compCtx.drawImage(attrCanvas, 0, 0); // <--- REMOVED THIS LINE
             compCtx.drawImage(speccyCanvas, 0, 0);
         }
 
@@ -618,7 +614,7 @@
         const osText = document.getElementById('os-text');
 
         function handleFile(input) {
-            unlockAudio(); // Ensure audio context is ready on file pick
+            unlockAudio();
             if(!input.files[0]) return;
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -672,7 +668,8 @@
             const timer = setInterval(() => {
                 if (y >= 192) {
                     clearInterval(timer);
-                    startAttributeLoad(); 
+                    // MODIFICATION: Skipped Attribute Load, went straight to finish
+                    finishLoading(); 
                     return;
                 }
                 visibleCtx.drawImage(speccyCanvas, 0, y, 256, step, 0, y, 256, step);
@@ -683,19 +680,7 @@
             }, 15);
         }
 
-        function startAttributeLoad() {
-            let y = 0;
-            const step = 8; 
-            const timer = setInterval(() => {
-                if (y >= 192) {
-                    clearInterval(timer);
-                    finishLoading();
-                    return;
-                }
-                visibleCtx.drawImage(compositeCanvas, 0, y, 256, step, 0, y, 256, step);
-                y += step;
-            }, 5); 
-        }
+        // startAttributeLoad() FUNCTION REMOVED
 
         function finishLoading() {
             stopTone();
@@ -720,6 +705,7 @@
         }
 
         function saveImage() {
+            // Updated: This will now save black pixels on white background (no spectrum color attributes)
             const link = document.createElement('a');
             link.download = 'zx-art.png';
             link.href = compositeCanvas.toDataURL(); 
