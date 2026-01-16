@@ -271,7 +271,7 @@
 
     <div id="faceplate">
         <div class="sinclair-branding">
-            <span class="logo-text">JV's SpecTape</span>
+            <span class="logo-text">JV's SpecBooth</span>
             <div class="rainbow-stripe"></div>
         </div>
 
@@ -559,10 +559,13 @@
             }
             redrawAttributes();
             
-            // Still creating composite for SAVE button, but not showing it
+            // --- FIX FOR PIXEL ONLY EXPORT ---
+            // Previously, this combined attrCanvas and speccyCanvas.
+            // I have removed the attribute layer from the composite
+            // so the saved image is strictly black pixels on white background.
             compCtx.fillStyle = PALETTE[7]; 
             compCtx.fillRect(0,0,256,192); 
-            compCtx.drawImage(attrCanvas, 0, 0);
+            // compCtx.drawImage(attrCanvas, 0, 0); // <--- REMOVED THIS LINE
             compCtx.drawImage(speccyCanvas, 0, 0);
         }
 
@@ -702,8 +705,7 @@
         }
 
         function saveImage() {
-            // Note: Saving still uses compositeCanvas, so the download might be color
-            // even if the screen shows black and white pixels.
+            // Updated: This will now save black pixels on white background (no spectrum color attributes)
             const link = document.createElement('a');
             link.download = 'zx-art.png';
             link.href = compositeCanvas.toDataURL(); 
