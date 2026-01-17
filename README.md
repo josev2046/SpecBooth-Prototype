@@ -46,6 +46,7 @@ This prototype adheres to a strict **"local-first"** architecture.
 * **Data retention:** User data exists solely in the device's temporary memory (RAM) and is irretrievably cleared the moment the application is closed or refreshed.
 
 ---
-**© 2026 Jose Velazquez. All Rights Reserved.**
+**© 2026 Jose Velazquez.**
+*Licensed under the MIT License. See `LICENSE` for details.*
 *SpecBooth™ is a trademark of Jose Velazquez.*
 
