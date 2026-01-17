@@ -45,3 +45,7 @@ This prototype adheres to a strict **"local-first"** architecture.
 * **On-device processing:** All image manipulation (scaling, filtering, Spectrum conversion) occurs locally within the device's web browser using the HTML5 Canvas API.
 * **Data retention:** User data exists solely in the device's temporary memory (RAM) and is irretrievably cleared the moment the application is closed or refreshed.
 
+---
+**© 2026 Jose Velazquez. All Rights Reserved.**
+*SpecBooth™ is a trademark of Jose Velazquez.*
+
